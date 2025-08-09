@@ -1,4 +1,4 @@
-# 🌤️ ProWeather – Professional Weather Web App
+# 🌤️ WeatherSphere – Professional Weather Web App
 
 > 🚀 A sleek, responsive, and data-rich weather platform built with **HTML, CSS, and JavaScript** — crafted for the **CodeSpark – 72 Hour Build Challenge**.
 
@@ -10,7 +10,7 @@
 
 ## 🧠 Overview
 
-**ProWeather** is a professional-grade weather web application that goes beyond basic forecasts. Designed for clarity, responsiveness, and engagement, it integrates **real-time APIs** with polished UI/UX to deliver accurate, visually appealing weather information.
+**WeatherSphere** is a professional-grade weather web application that goes beyond basic forecasts. Designed for clarity, responsiveness, and engagement, it integrates **real-time APIs** with polished UI/UX to deliver accurate, visually appealing weather information.
 
 ---
 
