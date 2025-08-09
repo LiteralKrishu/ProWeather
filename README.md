@@ -12,21 +12,6 @@
 
 **ProWeather** is a professional-grade weather web application that goes beyond basic forecasts. Designed for clarity, responsiveness, and engagement, it integrates **real-time APIs** with polished UI/UX to deliver accurate, visually appealing weather information.
 
-Key highlights include:
-
-- 🌍 **Geolocation Auto-Detect** – Weather for your current location  
-- 🔍 **City Search with Autocomplete** – Fast, intelligent location search  
-- 🌡 **Current Conditions** – Temperature, feels-like, weather icons  
-- 📅 **5-Day Forecast** – Scrollable daily outlook  
-- 🕒 **Hourly Forecast** – Next 12 hours in one view  
-- 🌅 **Sunrise/Sunset Times** – Visually represented with icons  
-- 💨 **Humidity, Wind, Pressure** – Detailed metrics at a glance  
-- ☀ **UV Index & Safety Notes** – Health-relevant tips  
-- 🏭 **Air Quality Index (AQI)** – Color-coded air safety data  
-- 🎨 **Animated Weather Backgrounds** – Dynamic visuals for each condition  
-- 🌗 **Light/Dark Mode** – Saved user preferences  
-- 📤 **Shareable Weather Summary** – Copy or tweet results instantly  
-
 ---
 
 ## 🛠 Tech Stack
@@ -38,6 +23,7 @@ Key highlights include:
 | **JavaScript (Vanilla)** | API integration, dynamic updates |
 | **[OpenWeatherMap API](https://openweathermap.org/api)** | Real-time weather & forecast |
 | **[GeoDB Cities API](https://rapidapi.com/wirefreethought/api/geodb-cities/)** | Autocomplete city search |
+| **[Leaflet.js](https://leafletjs.com/)** | Interactive map display |
 | **Netlify** | Hosting & deployment |
 | **GitHub** | Version control & documentation |
 
@@ -46,45 +32,56 @@ Key highlights include:
 ## 🗂 Feature Breakdown
 
 ### **1. Core Functional Features**
-- City search with autocomplete  
-- Current weather with °C/°F toggle  
-- Geolocation-based weather  
-- Responsive layout for all devices  
-- Error handling for invalid cities/API issues  
+- **City Search with Autocomplete** – Suggest cities while typing  
+- **Current Weather Data** – Temperature (°C/°F toggle), condition, icon, feels-like temperature  
+- **Geolocation Auto-Detect** – Show weather for user's current location  
+- **Interactive Map** – Leaflet-powered world map with weather markers; when zoomed in and hovered, city/district cards appear with quick info; clicking opens full weather details  
+- **Responsive Design** – Works on all screen sizes  
+- **Error Handling** – Friendly messages for invalid searches or API errors  
+- **Global Weather Overview** – Displays conditions in major cities in the user’s country  
+
+---
 
 ### **2. Enhanced UI & Experience**
-- Animated weather backgrounds  
-- 5-day forecast in scrollable cards  
-- Sunrise/Sunset visual indicators  
-- Light/Dark mode toggle (saved in localStorage)  
-- Loading animation while fetching  
+- **Weather-Themed Animated Backgrounds** – Dynamic visuals for different conditions (sun, rain, clouds, etc.)  
+- **Sunrise/Sunset Times** – Icons and proper formatting  
+- **Humidity, Wind Speed, Pressure** – Additional weather details  
+- **5-Day Forecast** – Scrollable cards showing upcoming days  
+- **Light/Dark Mode Toggle** – Saves preference in localStorage  
+- **Time-Based Auto Theme** – Switches to dark mode automatically from 6PM–6AM  
+- **Loading Animation** – Smooth preloader during data fetch  
+
+---
 
 ### **3. Advanced Data Insights**
-- Hourly forecast view  
-- UV Index with safety advice  
-- Air Quality Index (AQI)  
-- Historical weather comparison  
+- **Hourly Forecast View** – Next 12 hours in scrollable format  
+- **UV Index with Safety Note** – Health recommendations based on levels  
+- **Air Quality Index (AQI)** – Color-coded status levels  
+- **Historical Comparison** – Compare today’s weather to yesterday  
+
+---
 
 ### **4. Engagement & Shareability**
-- Share weather snapshot via text or social  
-- Seasonal animations for special dates  
+- **Share Weather Snapshot** – One-click copy or tweet  
+- **Seasonal Easter Eggs** – Themed animations for special dates  
 
 ---
 
 ## 🌐 Live Preview
 
+*(Add link after deployment)*  
 👉 **[View Live on Netlify](#)**
 
 ---
 
 ## 📷 Screenshots
 
-*(Add after project completion)*
+*(To be added after completion)*
 
 ---
 
 ## 📝 Credits
-- **Tools:** [ChatGPT](https://chatgpt.com/), [Claude](https://claude.ai), [Deepseek](https://chat.deepseek.com)
-- **APIs:** [OpenWeatherMap](https://openweathermap.org/api), [GeoDB Cities API](https://rapidapi.com/wirefreethought/api/geodb-cities/)
-- **Hosting:** [Netlify](https://www.netlify.com/)
-- **Challenge:** [Unstop CodeSpark – 72 Hour Build Challenge](https://unstop.com/hackathons/codespark-72-hour-build-challenge-techweek-vibe-engineers-government-engineering-college-siwan-1537337)
+- **APIs:** [OpenWeatherMap](https://openweathermap.org/api), [GeoDB Cities API](https://rapidapi.com/wirefreethought/api/geodb-cities/)  
+- **Mapping:** [Leaflet.js](https://leafletjs.com/)  
+- **Hosting:** [Netlify](https://www.netlify.com/)  
+- **Challenge:** [Unstop CodeSpark – 72 Hour Build Challenge](https://unstop.com/hackathons/codespark-72-hour-build-challenge-techweek-vibe-engineers-government-engineering-college-siwan-1537337))
