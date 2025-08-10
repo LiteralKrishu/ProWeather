@@ -36,6 +36,11 @@ const todayBar = document.querySelector('.comparison-bar.today');
 const yesterdayBar = document.querySelector('.comparison-bar.yesterday');
 const themeToggle = document.getElementById('theme-toggle');
 const weatherBackground = document.querySelector('.weather-background');
+const hourlyTab = document.getElementById('hourly-tab');
+const dailyTab = document.getElementById('daily-tab');
+const hourlySection = document.getElementById('hourly-section');
+const dailySection = document.getElementById('daily-section');
+const dailyScroll = document.querySelector('.daily-scroll');
 
 // Global Variables
 let currentUnit = 'c';
@@ -51,6 +56,7 @@ let popularCities = [
     { name: 'Antalya, Turkey', lat: 36.8969, lon: 30.7133 },
     { name: 'Tokyo, Japan', lat: 35.6762, lon: 139.6503 }
 ];
+let daily8ForecastData = null;
 
 // Initialize the application
 function init() {
@@ -78,14 +84,14 @@ function setupEventListeners() {
             if (results.length > 0) {
                 e.preventDefault();
                 let currentIndex = -1;
-                
+
                 results.forEach((result, index) => {
                     if (result.classList.contains('highlighted')) {
                         currentIndex = index;
                         result.classList.remove('highlighted');
                     }
                 });
-                
+
                 if (e.key === 'ArrowDown') {
                     const nextIndex = (currentIndex + 1) % results.length;
                     results[nextIndex].classList.add('highlighted');
@@ -102,6 +108,31 @@ function setupEventListeners() {
                 highlighted.click();
             }
         }
+    });
+
+    // Mutation observer to highlight first search result
+    const observer = new MutationObserver(() => {
+        const results = document.querySelectorAll('.search-result-item');
+        if (results.length > 0) {
+            // Remove highlight from all first
+            results.forEach(r => r.classList.remove('highlighted'));
+            results[0].classList.add('highlighted');
+        }
+    });
+    observer.observe(searchResults, { childList: true });
+    
+    // Forecast tab switching
+    hourlyTab.addEventListener('click', () => {
+        hourlyTab.classList.add('active');
+        dailyTab.classList.remove('active');
+        hourlySection.style.display = '';
+        dailySection.style.display = 'none';
+    });
+    dailyTab.addEventListener('click', () => {
+        dailyTab.classList.add('active');
+        hourlyTab.classList.remove('active');
+        hourlySection.style.display = 'none';
+        dailySection.style.display = '';
     });
 }
 
@@ -151,10 +182,29 @@ function initMap() {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
     
-    // Add zoom control with custom position
-    L.control.zoom({
-        position: 'topright'
-    }).addTo(map);
+    // Add a "Back to Current Location" button on the map
+    const locationBackControl = L.control({ position: 'topright' });
+    locationBackControl.onAdd = function(map) {
+        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+        div.style.backgroundColor = 'white';
+        div.style.width = '34px';
+        div.style.height = '34px';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'center';
+        div.style.cursor = 'pointer';
+        div.title = 'Back to Current Location';
+        div.innerHTML = '<i class="fas fa-location-arrow"></i>';
+        div.onclick = function(e) {
+            e.stopPropagation();
+            if (currentWeatherData) {
+                const { lat, lon } = currentWeatherData.coord;
+                map.setView([lat, lon], 10);
+            }
+        };
+        return div;
+    };
+    locationBackControl.addTo(map);
     
     // Add weather layer control
     addWeatherLayer();
@@ -270,23 +320,23 @@ function handleGeolocation() {
 // Handle temperature unit change
 function handleUnitChange(button) {
     if (button.dataset.unit === currentUnit) return;
-    
+
     currentUnit = button.dataset.unit;
     tempUnitButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.unit === currentUnit));
-    
+
     // Update all temperature displays
     if (currentWeatherData) {
         updateCurrentWeather(currentWeatherData);
     }
-    
+
     if (hourlyForecastData) {
         updateHourlyForecast(hourlyForecastData);
     }
-    
-    if (dailyForecastData) {
-        updateDailyForecast(dailyForecastData);
+
+    if (daily8ForecastData) {
+        updateDaily8Forecast();
     }
-    
+
     if (popularCities.length > 0) {
         updatePopularCities();
     }
@@ -369,26 +419,18 @@ function updateMapTheme() {
 function fetchWeatherData(lat, lon, locationName) {
     showLoading();
     currentCity.textContent = locationName;
-    
-    // Clear previous markers
     clearMarkers();
-    
-    // Add marker for current location
     addMarker(lat, lon, locationName);
-    
-    // Center map on location
     map.setView([lat, lon], 10);
-    
-    // Update weather background based on location
     updateWeatherBackgroundForLocation(lat, lon);
-    
+
     // Fetch current weather
     fetch(`${BASE_URL}/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`)
         .then(response => response.json())
         .then(data => {
             currentWeatherData = data;
             updateCurrentWeather(data);
-            
+
             // Fetch UV index (needs separate call)
             fetch(`${BASE_URL}/uvi?lat=${lat}&lon=${lon}&appid=${API_KEY}`)
                 .then(response => response.json())
@@ -396,7 +438,7 @@ function fetchWeatherData(lat, lon, locationName) {
                     updateUVIndex(uvData.value);
                 })
                 .catch(error => console.error('Error fetching UV index:', error));
-            
+
             // Fetch air quality (needs separate call)
             fetch(`${BASE_URL}/air_pollution?lat=${lat}&lon=${lon}&appid=${API_KEY}`)
                 .then(response => response.json())
@@ -405,7 +447,7 @@ function fetchWeatherData(lat, lon, locationName) {
                     updateAirQuality(aqiData.list[0].main.aqi);
                 })
                 .catch(error => console.error('Error fetching air quality:', error));
-            
+
             // Fetch hourly forecast (5 day / 3 hour forecast)
             return fetch(`${BASE_URL}/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`);
         })
@@ -413,10 +455,27 @@ function fetchWeatherData(lat, lon, locationName) {
         .then(data => {
             hourlyForecastData = data;
             updateHourlyForecast(data);
-            
-            // Process daily forecast from hourly data
-            processDailyForecast(data);
-            
+
+            // Try 8-day forecast from One Call API
+            return fetch(`https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&exclude=minutely,hourly,alerts&appid=${API_KEY}&units=metric`)
+                .then(response => response.json())
+                .then(oneCallData => {
+                    if (oneCallData.daily && oneCallData.daily.length >= 8) {
+                        daily8ForecastData = oneCallData.daily.slice(0, 8);
+                        // Adapt for updateDaily8Forecast
+                        daily8ForecastData = daily8ForecastData.map(day => ({
+                            ...day,
+                            weatherId: day.weather[0].id,
+                            dayName: new Date(day.dt * 1000).toLocaleDateString('en-US', { weekday: 'short' })
+                        }));
+                        updateDaily8Forecast();
+                    } else {
+                        // Fallback to process 3-hourly forecast
+                        processDaily8Forecast(data);
+                    }
+                });
+        })
+        .then(() => {
             // Mock historical data for demo
             setTimeout(() => {
                 historicalData = {
@@ -426,7 +485,7 @@ function fetchWeatherData(lat, lon, locationName) {
                 };
                 updateHistoricalComparison();
             }, 500);
-            
+
             hideLoading();
         })
         .catch(error => {
@@ -434,9 +493,80 @@ function fetchWeatherData(lat, lon, locationName) {
             hideLoading();
             alert('Failed to fetch weather data. Please try again later.');
         });
-    
-    // Update popular cities with current location
+
     updatePopularCities();
+}
+
+// Process and update 8-day forecast using 3-hourly forecast data (fallback if One Call API is not available)
+function processDaily8Forecast(data) {
+    const dailyForecasts = {};
+
+    data.list.forEach(forecast => {
+        const date = new Date(forecast.dt * 1000);
+        const dayKey = date.toISOString().split('T')[0]; // e.g., "2025-08-10"
+        if (!dailyForecasts[dayKey]) {
+            dailyForecasts[dayKey] = [];
+        }
+        dailyForecasts[dayKey].push(forecast);
+    });
+
+    const sortedDays = Object.keys(dailyForecasts).sort();
+
+    // Take the next 8 days
+    daily8ForecastData = sortedDays.slice(0, 8).map(dayKey => {
+        const dayForecasts = dailyForecasts[dayKey];
+        const dayDate = new Date(dayForecasts[0].dt * 1000);
+
+        const avgTemp = dayForecasts.reduce((sum, f) => sum + f.main.temp, 0) / dayForecasts.length;
+
+        const weatherCounts = {};
+        dayForecasts.forEach(f => {
+            const weatherId = f.weather[0].id;
+            weatherCounts[weatherId] = (weatherCounts[weatherId] || 0) + 1;
+        });
+        const mostCommonWeather = Object.entries(weatherCounts).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+
+        return {
+            date: dayDate,
+            dayName: dayDate.toLocaleDateString('en-US', { weekday: 'short' }),
+            temp: avgTemp,
+            weatherId: mostCommonWeather
+        };
+    });
+
+    updateDaily8Forecast();
+}
+
+// Update daily 8-day forecast display
+function updateDaily8Forecast() {
+    if (!daily8ForecastData) return;
+    dailyScroll.innerHTML = '';
+    daily8ForecastData.forEach((day, index) => {
+        // Support both One Call and fallback structure
+        const temp = currentUnit === 'c'
+            ? Math.round(day.temp.day !== undefined ? day.temp.day : day.temp)
+            : Math.round(((day.temp.day !== undefined ? day.temp.day : day.temp) * 9/5) + 32);
+        const icon = getWeatherIcon(day.weatherId !== undefined ? day.weatherId : day.weather[0].id, 12);
+        const dayName = day.dayName || new Date(day.dt * 1000).toLocaleDateString('en-US', { weekday: 'short' });
+
+        const dayElement = document.createElement('div');
+        dayElement.className = 'daily-item';
+        dayElement.innerHTML = `
+            <p>${dayName}</p>
+            <i class="fas ${icon}"></i>
+            <p>${temp}°</p>
+        `;
+        // Add animation
+        dayElement.style.opacity = '0';
+        dayElement.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            dayElement.classList.add('fade-in');
+            dayElement.style.opacity = '1';
+            dayElement.style.transform = 'translateY(0)';
+        }, index * 100);
+
+        dailyScroll.appendChild(dayElement);
+    });
 }
 
 // Update current weather display
@@ -569,87 +699,35 @@ function updateHourlyForecast(data) {
     }
 }
 
-// Process and update daily forecast
-function processDailyForecast(data) {
-    const dailyForecasts = {};
-    
-    // Group forecasts by day
-    data.list.forEach(forecast => {
-        const date = new Date(forecast.dt * 1000);
-        const day = date.getDate();
-        
-        if (!dailyForecasts[day]) {
-            dailyForecasts[day] = [];
-        }
-        
-        dailyForecasts[day].push(forecast);
-    });
-    
-    // Get today's date
-    const today = new Date().getDate();
-    
-    // Extract next 5 days (excluding today)
-    const nextDays = Object.keys(dailyForecasts)
-        .filter(day => parseInt(day) !== today)
-        .slice(0, 5);
-    
-    dailyForecastData = nextDays.map(day => {
-        const dayForecasts = dailyForecasts[day];
-        const dayDate = new Date(dayForecasts[0].dt * 1000);
-        
-        // Calculate average temp for the day
-        const avgTemp = dayForecasts.reduce((sum, f) => sum + f.main.temp, 0) / dayForecasts.length;
-        
-        // Find most common weather condition
-        const weatherCounts = {};
-        dayForecasts.forEach(f => {
-            const weatherId = f.weather[0].id;
-            weatherCounts[weatherId] = (weatherCounts[weatherId] || 0) + 1;
-        });
-        
-        const mostCommonWeather = Object.entries(weatherCounts).reduce((a, b) => a[1] > b[1] ? a : b)[0];
-        
-        return {
-            date: dayDate,
-            day: dayDate.getDate(),
-            dayName: dayDate.toLocaleDateString('en-US', { weekday: 'short' }),
-            temp: avgTemp,
-            weatherId: mostCommonWeather
-        };
-    });
-    
-    updateDailyForecast();
-}
+// Update daily 8-day forecast display
+function updateDaily8Forecast() {
+    if (!daily8ForecastData) return;
+    dailyScroll.innerHTML = '';
+    daily8ForecastData.forEach((day, index) => {
+        // Support both One Call and fallback structure
+        const temp = currentUnit === 'c'
+            ? Math.round(day.temp.day !== undefined ? day.temp.day : day.temp)
+            : Math.round(((day.temp.day !== undefined ? day.temp.day : day.temp) * 9/5) + 32);
+        const icon = getWeatherIcon(day.weatherId !== undefined ? day.weatherId : day.weather[0].id, 12);
+        const dayName = day.dayName || new Date(day.dt * 1000).toLocaleDateString('en-US', { weekday: 'short' });
 
-// Update daily forecast display
-function updateDailyForecast() {
-    if (!dailyForecastData) return;
-    
-    forecastDays.innerHTML = '';
-    
-    dailyForecastData.forEach((day, index) => {
-        const temp = currentUnit === 'c' ? Math.round(day.temp) : Math.round((day.temp * 9/5) + 32);
-        
         const dayElement = document.createElement('div');
-        dayElement.className = 'forecast-day';
-        
+        dayElement.className = 'daily-item';
         dayElement.innerHTML = `
-            <p>${day.dayName}</p>
-            <i class="fas ${getWeatherIcon(day.weatherId, 12)}"></i>
+            <p>${dayName}</p>
+            <i class="fas ${icon}"></i>
             <p>${temp}°</p>
         `;
-        
         // Add animation
         dayElement.style.opacity = '0';
         dayElement.style.transform = 'translateY(20px)';
-        
         setTimeout(() => {
             dayElement.classList.add('fade-in');
             dayElement.style.opacity = '1';
             dayElement.style.transform = 'translateY(0)';
         }, index * 100);
-        
-        forecastDays.appendChild(dayElement);
+
+        dailyScroll.appendChild(dayElement);
     });
 }
 
@@ -844,62 +922,56 @@ function updateWeatherBackgroundForLocation(lat, lon) {
 function createSunBackground() {
     const sun = document.createElement('div');
     sun.className = 'weather-bg-element sun';
+    sun.style.width = '180px';
+    sun.style.height = '180px';
     sun.style.background = 'radial-gradient(circle, #ffde59 0%, #ff914d 100%)';
-    sun.style.width = '150px';
-    sun.style.height = '150px';
-    sun.style.top = '20%';
-    sun.style.right = '20%';
-    sun.style.animation = 'pulse 8s infinite alternate';
+    sun.style.top = '10%';
+    sun.style.right = '10%';
     weatherBackground.appendChild(sun);
 }
 
-// Create cloud background elements
 function createCloudBackground() {
     for (let i = 0; i < 3; i++) {
         const cloud = document.createElement('div');
         cloud.className = 'weather-bg-element cloud';
-        cloud.style.background = 'rgba(255, 255, 255, 0.7)';
-        cloud.style.width = `${150 + Math.random() * 100}px`;
-        cloud.style.height = `${60 + Math.random() * 40}px`;
-        cloud.style.top = `${10 + Math.random() * 60}%`;
-        cloud.style.left = `${Math.random() * 80}%`;
-        cloud.style.animation = `moveCloud ${30 + Math.random() * 20}s linear infinite ${i % 2 === 0 ? '' : 'reverse'}`;
+        cloud.style.background = 'rgba(255,255,255,0.8)';
+        cloud.style.width = `${120 + Math.random() * 80}px`;
+        cloud.style.height = `${50 + Math.random() * 30}px`;
+        cloud.style.top = `${20 + i * 20 + Math.random() * 10}%`;
+        cloud.style.left = `${-20 + Math.random() * 30}%`;
+        cloud.style.animationDuration = `${30 + Math.random() * 20}s`;
         weatherBackground.appendChild(cloud);
     }
 }
 
-// Create rain background elements
 function createRainBackground() {
     createCloudBackground();
-    
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 40; i++) {
         const rain = document.createElement('div');
         rain.className = 'weather-bg-element rain';
-        rain.style.background = 'linear-gradient(to bottom, transparent, rgba(174, 194, 224, 0.7))';
+        rain.style.background = 'linear-gradient(to bottom, transparent, rgba(76,201,240,0.7))';
         rain.style.width = '2px';
-        rain.style.height = `${15 + Math.random() * 10}px`;
+        rain.style.height = `${12 + Math.random() * 10}px`;
         rain.style.left = `${Math.random() * 100}%`;
-        rain.style.top = `${-10 - Math.random() * 20}%`;
-        rain.style.animation = `rainFall ${0.5 + Math.random() * 1.5}s linear infinite`;
+        rain.style.top = `${-10 - Math.random() * 10}%`;
+        rain.style.animationDuration = `${1 + Math.random()}s`;
         rain.style.animationDelay = `${Math.random() * 2}s`;
         weatherBackground.appendChild(rain);
     }
 }
 
-// Create snow background elements
 function createSnowBackground() {
     createCloudBackground();
-    
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 25; i++) {
         const snow = document.createElement('div');
         snow.className = 'weather-bg-element snow';
         snow.style.background = 'white';
         snow.style.width = `${4 + Math.random() * 4}px`;
         snow.style.height = snow.style.width;
         snow.style.left = `${Math.random() * 100}%`;
-        snow.style.top = `${-10 - Math.random() * 20}%`;
-        snow.style.animation = `snowFall ${5 + Math.random() * 5}s linear infinite`;
-        snow.style.animationDelay = `${Math.random() * 5}s`;
+        snow.style.top = `${-10 - Math.random() * 10}%`;
+        snow.style.animationDuration = `${4 + Math.random() * 4}s`;
+        snow.style.animationDelay = `${Math.random() * 3}s`;
         weatherBackground.appendChild(snow);
     }
 }

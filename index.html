@@ -103,13 +103,6 @@
                 </div>
             </div>
 
-            <div class="forecast-container">
-                <h3>5-Day Forecast</h3>
-                <div class="forecast-days">
-                    <!-- Filled dynamically by JavaScript -->
-                </div>
-            </div>
-
             <div class="global-cities">
                 <h3>World Forecast</h3>
                 <div class="city-list">
@@ -125,9 +118,19 @@
             </div>
 
             <div class="hourly-forecast">
-                <h3>Hourly Forecast</h3>
-                <div class="hourly-scroll">
-                    <!-- Filled dynamically by JavaScript -->
+                <h3>
+                    <button id="hourly-tab" class="forecast-tab active">Hourly Forecast</button>
+                    <button id="daily-tab" class="forecast-tab">Daily Forecast</button>
+                </h3>
+                <div id="hourly-section" class="forecast-section">
+                    <div class="hourly-scroll">
+                        <!-- Filled dynamically by JavaScript -->
+                    </div>
+                </div>
+                <div id="daily-section" class="forecast-section" style="display:none;">
+                    <div class="daily-scroll">
+                        <!-- Filled dynamically by JavaScript -->
+                    </div>
                 </div>
             </div>
 
