@@ -166,10 +166,10 @@
                 <div class="info-card historical-comparison">
                     <h4>Historical Comparison</h4>
                     <div class="comparison-chart">
-                        <div class="comparison-bar today" style="height: 70%;">
+                        <div class="comparison-bar today">
                             <span>Today<br>--°</span>
                         </div>
-                        <div class="comparison-bar yesterday" style="height: 60%;">
+                        <div class="comparison-bar yesterday">
                             <span>Yesterday<br>--°</span>
                         </div>
                     </div>
@@ -186,6 +186,28 @@
                 <div class="loader-rain"></div>
             </div>
             <p class="loading-text">Loading weather data...</p>
+        </div>
+    </div>
+
+    <!-- Detailed Forecast Overlay -->
+    <div class="detailed-forecast-overlay" style="display: none;">
+        <div class="detailed-forecast">
+            <button class="close-btn">&times;</button>
+            <div class="forecast-details">
+                <div class="main-weather">
+                    <h3 class="forecast-time">--</h3>
+                    <div class="large-icon">
+                        <i class=""></i>
+                    </div>
+                    <div class="temp-container">
+                        <div class="temp">--°</div>
+                        <div class="feels-like">Feels like: --°</div>
+                    </div>
+                </div>
+                <div class="weather-info-grid">
+                    <!-- Weather details will be populated dynamically -->
+                </div>
+            </div>
         </div>
     </div>
 

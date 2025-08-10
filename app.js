@@ -64,7 +64,16 @@ function init() {
     initMap();
     setCurrentDate();
     setupTheme();
-    checkGeolocation();
+
+    // Check for selected date before getting geolocation
+    const selectedDate = localStorage.getItem('selectedDate');
+    if (selectedDate) {
+        const selectedData = JSON.parse(selectedDate);
+        fetchWeatherData(selectedData.lat, selectedData.lon, selectedData.cityName);
+        localStorage.removeItem('selectedDate');
+    } else {
+        checkGeolocation();
+    }
     createWeatherBackground();
 }
 
@@ -497,44 +506,47 @@ function fetchWeatherData(lat, lon, locationName) {
     updatePopularCities();
 }
 
-// Process and update 8-day forecast using 3-hourly forecast data (fallback if One Call API is not available)
+// Process and update 8-day forecast
 function processDaily8Forecast(data) {
     const dailyForecasts = {};
-
-    data.list.forEach(forecast => {
-        const date = new Date(forecast.dt * 1000);
-        const dayKey = date.toISOString().split('T')[0]; // e.g., "2025-08-10"
-        if (!dailyForecasts[dayKey]) {
-            dailyForecasts[dayKey] = [];
-        }
-        dailyForecasts[dayKey].push(forecast);
-    });
-
-    const sortedDays = Object.keys(dailyForecasts).sort();
-
-    // Take the next 8 days
-    daily8ForecastData = sortedDays.slice(0, 8).map(dayKey => {
-        const dayForecasts = dailyForecasts[dayKey];
-        const dayDate = new Date(dayForecasts[0].dt * 1000);
-
-        const avgTemp = dayForecasts.reduce((sum, f) => sum + f.main.temp, 0) / dayForecasts.length;
-
-        const weatherCounts = {};
-        dayForecasts.forEach(f => {
-            const weatherId = f.weather[0].id;
-            weatherCounts[weatherId] = (weatherCounts[weatherId] || 0) + 1;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Process next 8 days
+    for (let i = 0; i < 8; i++) {
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() + i);
+        const targetDateStr = targetDate.toISOString().split('T')[0];
+        
+        const dayForecasts = data.list.filter(item => {
+            const itemDate = new Date(item.dt * 1000);
+            return itemDate.toISOString().split('T')[0] === targetDateStr;
         });
-        const mostCommonWeather = Object.entries(weatherCounts).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+        
+        if (dayForecasts.length > 0) {
+            dailyForecasts[targetDateStr] = {
+                date: targetDate,
+                dayName: targetDate.toLocaleDateString('en-US', { weekday: 'short' }),
+                temp: dayForecasts.reduce((sum, f) => sum + f.main.temp, 0) / dayForecasts.length,
+                feels_like: dayForecasts.reduce((sum, f) => sum + f.main.feels_like, 0) / dayForecasts.length,
+                weatherId: getMostFrequentWeather(dayForecasts),
+                forecasts: dayForecasts
+            };
+        }
+    }
 
-        return {
-            date: dayDate,
-            dayName: dayDate.toLocaleDateString('en-US', { weekday: 'short' }),
-            temp: avgTemp,
-            weatherId: mostCommonWeather
-        };
-    });
-
+    daily8ForecastData = Object.values(dailyForecasts);
     updateDaily8Forecast();
+}
+
+// Helper function to get most frequent weather condition
+function getMostFrequentWeather(forecasts) {
+    const weatherCounts = {};
+    forecasts.forEach(f => {
+        const weatherId = f.weather[0].id;
+        weatherCounts[weatherId] = (weatherCounts[weatherId] || 0) + 1;
+    });
+    return Object.entries(weatherCounts).reduce((a, b) => a[1] > b[1] ? a : b)[0];
 }
 
 // Update daily 8-day forecast display
@@ -556,6 +568,7 @@ function updateDaily8Forecast() {
             <i class="fas ${icon}"></i>
             <p>${temp}°</p>
         `;
+
         // Add animation
         dayElement.style.opacity = '0';
         dayElement.style.transform = 'translateY(20px)';
@@ -572,7 +585,17 @@ function updateDaily8Forecast() {
 // Update current weather display
 function updateCurrentWeather(data) {
     const temp = currentUnit === 'c' ? Math.round(data.main.temp) : Math.round((data.main.temp * 9/5) + 32);
-    currentTemp.textContent = temp;
+    const feelsLike = currentUnit === 'c' ? Math.round(data.main.feels_like) : Math.round((data.main.feels_like * 9/5) + 32);
+    
+    currentTemp.textContent = `${temp}°`;
+    
+    // Add feels like temperature
+    const feelsLikeElement = document.querySelector('.feels-like-temp') || document.createElement('p');
+    feelsLikeElement.className = 'feels-like-temp';
+    feelsLikeElement.textContent = `Feels like: ${feelsLike}°`;
+    if (!document.querySelector('.feels-like-temp')) {
+        document.querySelector('.temperature').appendChild(feelsLikeElement);
+    }
     
     weatherIcon.src = `${ICON_URL}${data.weather[0].icon}@2x.png`;
     weatherIcon.alt = data.weather[0].description;
@@ -657,46 +680,54 @@ function updateAirQuality(aqi) {
 function updateHourlyForecast(data) {
     hourlyScroll.innerHTML = '';
     
-    // Get current hour
-    const now = new Date();
-    const currentHour = now.getHours();
+    // Create array of desired hours (1 AM to 10 PM, 3hr gap)
+    const desiredHours = [1, 4, 7, 10, 13, 16, 19, 22];
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Start from beginning of day
     
-    // Display next 12 hours
-    for (let i = 0; i < 12; i++) {
-        const forecast = data.list[i];
-        const forecastDate = new Date(forecast.dt * 1000);
-        const hour = forecastDate.getHours();
-        const temp = currentUnit === 'c' ? Math.round(forecast.main.temp) : Math.round((forecast.main.temp * 9/5) + 32);
-        
-        const hourItem = document.createElement('div');
-        hourItem.className = 'hourly-item';
-        
-        // Format time display
-        let timeDisplay;
-        if (i === 0) {
-            timeDisplay = 'Now';
-        } else {
-            timeDisplay = `${hour}:00`;
+    desiredHours.forEach((hour, index) => {
+        // Find forecast closest to desired hour
+        const forecast = data.list.find(item => {
+            const forecastHour = new Date(item.dt * 1000).getHours();
+            return forecastHour >= hour && forecastHour < hour + 3;
+        });
+
+        if (forecast) {
+            const forecastDate = new Date(forecast.dt * 1000);
+            const temp = currentUnit === 'c' ? 
+                Math.round(forecast.main.temp) : 
+                Math.round((forecast.main.temp * 9/5) + 32);
+            
+            const hourItem = document.createElement('div');
+            hourItem.className = 'hourly-item';
+            
+            // Format time in 12-hour clock
+            const timeStr = forecastDate.toLocaleString('en-US', {
+                hour: 'numeric',
+                hour12: true
+            });
+            
+            hourItem.innerHTML = `
+                <p>${timeStr}</p>
+                <i class="fas ${getWeatherIcon(forecast.weather[0].id, forecastDate.getHours())}"></i>
+                <p>${temp}°</p>
+            `;
+            
+            // Add click handler
+            hourItem.addEventListener('click', () => showDetailedForecast(forecast, 'hourly'));
+            
+            // Add animation
+            hourItem.style.opacity = '0';
+            hourItem.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                hourItem.classList.add('fade-in');
+                hourItem.style.opacity = '1';
+                hourItem.style.transform = 'translateY(0)';
+            }, index * 100);
+            
+            hourlyScroll.appendChild(hourItem);
         }
-        
-        hourItem.innerHTML = `
-            <p>${timeDisplay}</p>
-            <i class="fas ${getWeatherIcon(forecast.weather[0].id, hour)}"></i>
-            <p>${temp}°</p>
-        `;
-        
-        // Add animation
-        hourItem.style.opacity = '0';
-        hourItem.style.transform = 'translateY(20px)';
-        
-        setTimeout(() => {
-            hourItem.classList.add('fade-in');
-            hourItem.style.opacity = '1';
-            hourItem.style.transform = 'translateY(0)';
-        }, i * 100);
-        
-        hourlyScroll.appendChild(hourItem);
-    }
+    });
 }
 
 // Update daily 8-day forecast display
@@ -718,6 +749,7 @@ function updateDaily8Forecast() {
             <i class="fas ${icon}"></i>
             <p>${temp}°</p>
         `;
+
         // Add animation
         dayElement.style.opacity = '0';
         dayElement.style.transform = 'translateY(20px)';
@@ -734,26 +766,39 @@ function updateDaily8Forecast() {
 // Update historical comparison
 function updateHistoricalComparison() {
     if (!currentWeatherData || !historicalData) return;
+
+    const currentTemp = currentUnit === 'c' ? 
+        Math.round(currentWeatherData.main.temp) : 
+        Math.round((currentWeatherData.main.temp * 9/5) + 32);
     
-    const currentTemp = currentWeatherData.main.temp;
-    const yesterdayTemp = historicalData.current.temp;
-    
-    const currentHeight = Math.min(Math.max((currentTemp + 20) / 40 * 100, 10), 100);
-    const yesterdayHeight = Math.min(Math.max((yesterdayTemp + 20) / 40 * 100, 10), 100);
-    
-    todayBar.style.height = `${currentHeight}%`;
-    todayBar.querySelector('span').innerHTML = `Today<br>${Math.round(currentTemp)}°`;
-    
+    const yesterdayTemp = currentUnit === 'c' ? 
+        Math.round(historicalData.current.temp) : 
+        Math.round((historicalData.current.temp * 9/5) + 32);
+
+    const minTemp = Math.min(currentTemp, yesterdayTemp);
+    const maxTemp = Math.max(currentTemp, yesterdayTemp);
+    const range = maxTemp - minTemp;
+    const baseHeight = 30;
+    const maxHeightDiff = 60;
+
+    const todayHeight = baseHeight + ((currentTemp - minTemp) / range) * maxHeightDiff;
+    const yesterdayHeight = baseHeight + ((yesterdayTemp - minTemp) / range) * maxHeightDiff;
+
+    // Update bar heights and temperature displays
+    todayBar.style.height = `${todayHeight}%`;
+    todayBar.querySelector('span').innerHTML = `Today<br><br>${currentTemp}°`;
+
     yesterdayBar.style.height = `${yesterdayHeight}%`;
-    yesterdayBar.querySelector('span').innerHTML = `Yesterday<br>${Math.round(yesterdayTemp)}°`;
-    
-    const diff = Math.round(currentTemp - yesterdayTemp);
+    yesterdayBar.querySelector('span').innerHTML = `Yesterday<br><br>${yesterdayTemp}°`;
+
+    // Update comparison text
+    const diff = currentTemp - yesterdayTemp;
     const comparisonText = document.querySelector('.historical-comparison p');
-    
+
     if (diff > 0) {
-        comparisonText.textContent = `Warmer than yesterday by ${diff}°`;
+        comparisonText.textContent = `${diff}° warmer than yesterday`;
     } else if (diff < 0) {
-        comparisonText.textContent = `Cooler than yesterday by ${Math.abs(diff)}°`;
+        comparisonText.textContent = `${Math.abs(diff)}° cooler than yesterday`;
     } else {
         comparisonText.textContent = `Same temperature as yesterday`;
     }
@@ -877,35 +922,40 @@ function getWeatherIcon(weatherCode, hour) {
     }
 }
 
-// Create dynamic weather background
-function createWeatherBackground() {
-    weatherBackground.innerHTML = '';
-}
-
 // Update weather background based on current weather
-function updateWeatherBackground(weatherCode) {
-    weatherBackground.innerHTML = '';
+function updateWeatherBackground(weatherId) {
+    let tint;
     
-    // Clear weather
-    if (weatherCode === 800) {
-        createSunBackground();
+    // Clear
+    if (weatherId === 800) {
+        tint = 'var(--weather-tint-clear)';
     }
-    // Cloudy weather
-    else if (weatherCode > 800 && weatherCode < 900) {
-        createCloudBackground();
+    // Clouds
+    else if (weatherId >= 801 && weatherId <= 804) {
+        tint = 'var(--weather-tint-clouds)';
     }
-    // Rainy weather
-    else if (weatherCode >= 500 && weatherCode < 600) {
-        createRainBackground();
-    }
-    // Snowy weather
-    else if (weatherCode >= 600 && weatherCode < 700) {
-        createSnowBackground();
+    // Rain
+    else if ((weatherId >= 500 && weatherId <= 531) || (weatherId >= 300 && weatherId <= 321)) {
+        tint = 'var(--weather-tint-rain)';
     }
     // Thunderstorm
-    else if (weatherCode >= 200 && weatherCode < 300) {
-        createThunderstormBackground();
+    else if (weatherId >= 200 && weatherId <= 232) {
+        tint = 'var(--weather-tint-thunderstorm)';
     }
+    // Snow
+    else if (weatherId >= 600 && weatherId <= 622) {
+        tint = 'var(--weather-tint-snow)';
+    }
+    // Atmosphere (mist, fog, etc)
+    else if (weatherId >= 701 && weatherId <= 781) {
+        tint = 'var(--weather-tint-mist)';
+    }
+    // Default
+    else {
+        tint = 'none';
+    }
+
+    document.documentElement.style.setProperty('--weather-tint', tint);
 }
 
 // Update weather background based on location (for initial load)
@@ -916,92 +966,6 @@ function updateWeatherBackgroundForLocation(lat, lon) {
             updateWeatherBackground(data.weather[0].id);
         })
         .catch(error => console.error('Error fetching weather for background:', error));
-}
-
-// Create sun background elements
-function createSunBackground() {
-    const sun = document.createElement('div');
-    sun.className = 'weather-bg-element sun';
-    sun.style.width = '180px';
-    sun.style.height = '180px';
-    sun.style.background = 'radial-gradient(circle, #ffde59 0%, #ff914d 100%)';
-    sun.style.top = '10%';
-    sun.style.right = '10%';
-    weatherBackground.appendChild(sun);
-}
-
-function createCloudBackground() {
-    for (let i = 0; i < 3; i++) {
-        const cloud = document.createElement('div');
-        cloud.className = 'weather-bg-element cloud';
-        cloud.style.background = 'rgba(255,255,255,0.8)';
-        cloud.style.width = `${120 + Math.random() * 80}px`;
-        cloud.style.height = `${50 + Math.random() * 30}px`;
-        cloud.style.top = `${20 + i * 20 + Math.random() * 10}%`;
-        cloud.style.left = `${-20 + Math.random() * 30}%`;
-        cloud.style.animationDuration = `${30 + Math.random() * 20}s`;
-        weatherBackground.appendChild(cloud);
-    }
-}
-
-function createRainBackground() {
-    createCloudBackground();
-    for (let i = 0; i < 40; i++) {
-        const rain = document.createElement('div');
-        rain.className = 'weather-bg-element rain';
-        rain.style.background = 'linear-gradient(to bottom, transparent, rgba(76,201,240,0.7))';
-        rain.style.width = '2px';
-        rain.style.height = `${12 + Math.random() * 10}px`;
-        rain.style.left = `${Math.random() * 100}%`;
-        rain.style.top = `${-10 - Math.random() * 10}%`;
-        rain.style.animationDuration = `${1 + Math.random()}s`;
-        rain.style.animationDelay = `${Math.random() * 2}s`;
-        weatherBackground.appendChild(rain);
-    }
-}
-
-function createSnowBackground() {
-    createCloudBackground();
-    for (let i = 0; i < 25; i++) {
-        const snow = document.createElement('div');
-        snow.className = 'weather-bg-element snow';
-        snow.style.background = 'white';
-        snow.style.width = `${4 + Math.random() * 4}px`;
-        snow.style.height = snow.style.width;
-        snow.style.left = `${Math.random() * 100}%`;
-        snow.style.top = `${-10 - Math.random() * 10}%`;
-        snow.style.animationDuration = `${4 + Math.random() * 4}s`;
-        snow.style.animationDelay = `${Math.random() * 3}s`;
-        weatherBackground.appendChild(snow);
-    }
-}
-
-// Create thunderstorm background elements
-function createThunderstormBackground() {
-    createRainBackground();
-    
-    // Add occasional lightning flashes
-    const lightning = document.createElement('div');
-    lightning.className = 'weather-bg-element lightning';
-    lightning.style.position = 'fixed';
-    lightning.style.top = '0';
-    lightning.style.left = '0';
-    lightning.style.width = '100%';
-    lightning.style.height = '100%';
-    lightning.style.backgroundColor = 'rgba(255, 255, 255, 0)';
-    lightning.style.pointerEvents = 'none';
-    lightning.style.zIndex = '1';
-    lightning.style.transition = 'background-color 0.1s ease';
-    weatherBackground.appendChild(lightning);
-    
-    setInterval(() => {
-        if (Math.random() > 0.7) {
-            lightning.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
-            setTimeout(() => {
-                lightning.style.backgroundColor = 'rgba(255, 255, 255, 0)';
-            }, 100);
-        }
-    }, 3000);
 }
 
 // Show loading overlay
@@ -1065,6 +1029,92 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(context, args), wait);
     };
+}
+
+// Show detailed forecast when clicking on a forecast item
+function showDetailedForecast(forecast, type) {
+    const detailedView = document.createElement('div');
+    detailedView.className = 'detailed-forecast-overlay';
+    
+    const temp = currentUnit === 'c' ? 
+        Math.round(forecast.main.temp) : 
+        Math.round((forecast.main.temp * 9/5) + 32);
+    
+    const feelsLike = currentUnit === 'c' ? 
+        Math.round(forecast.main.feels_like) : 
+        Math.round((forecast.main.feels_like * 9/5) + 32);
+    
+    const date = new Date(forecast.dt * 1000);
+    const dateStr = date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+    });
+    
+    const timeStr = type === 'hourly' ? date.toLocaleString('en-US', {
+        hour: 'numeric',
+        hour12: true
+    }) : '';
+
+    detailedView.innerHTML = `
+        <div class="detailed-forecast">
+            <button class="close-btn"><i class="fas fa-times"></i></button>
+            <h3>${dateStr} ${timeStr ? `(${timeStr})` : ''}</h3>
+            <div class="forecast-details">
+                <div class="main-weather">
+                    <i class="fas ${getWeatherIcon(forecast.weather[0].id, date.getHours())} large-icon"></i>
+                    <div class="temp-container">
+                        <p class="temp">${temp}°</p>
+                        <p class="feels-like">Feels like: ${feelsLike}°</p>
+                    </div>
+                </div>
+                <div class="weather-info-grid">
+                    <div class="info-item">
+                        <i class="fas fa-tint"></i>
+                        <p>Humidity</p>
+                        <p>${forecast.main.humidity}%</p>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-wind"></i>
+                        <p>Wind Speed</p>
+                        <p>${Math.round(forecast.wind.speed * 3.6)} km/h</p>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <p>Pressure</p>
+                        <p>${forecast.main.pressure} hPa</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(detailedView);
+
+    // Add active class after a small delay to trigger animation
+    requestAnimationFrame(() => {
+        detailedView.classList.add('active');
+    });
+
+    // Close when clicking outside the forecast details
+    detailedView.addEventListener('click', (e) => {
+        if (e.target === detailedView) {
+            closeDetailedForecast(detailedView);
+        }
+    });
+
+    // Close when clicking the close button
+    detailedView.querySelector('.close-btn').addEventListener('click', () => {
+        closeDetailedForecast(detailedView);
+    });
+}
+
+// Close detailed forecast with animation
+function closeDetailedForecast(element) {
+    element.classList.remove('active');
+    element.addEventListener('transitionend', () => {
+        element.remove();
+    }, { once: true });
 }
 
 // Initialize the app when DOM is loaded
