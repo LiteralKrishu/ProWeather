@@ -57,6 +57,7 @@ let popularCities = [
     { name: 'Tokyo, Japan', lat: 35.6762, lon: 139.6503 }
 ];
 let daily8ForecastData = null;
+let locationRequested = false;
 
 // Initialize the application
 function init() {
@@ -147,35 +148,94 @@ function setupEventListeners() {
 
 // Check for geolocation on load
 function checkGeolocation() {
+    // First check if the browser supports permissions API
+    if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' })
+            .then(permissionStatus => {
+                if (permissionStatus.state === 'granted') {
+                    // Permission already granted, get location
+                    getUserLocation();
+                } else if (permissionStatus.state === 'denied') {
+                    // Permission was denied, use fallback
+                    console.log('Geolocation permission denied');
+                    alert("Your browser doesn't support or has disabled geolocation. Using default location.");
+                    fetchWeatherData(52.52, 13.41, 'Berlin, Germany');
+                } else {
+                    // Permission not determined, ask for it
+                    getUserLocation();
+                }
+            })
+            .catch(error => {
+                console.error('Error checking permission:', error);
+                getUserLocation();
+            });
+    } else {
+        // Browser doesn't support permissions API, try direct geolocation
+        getUserLocation();
+    }
+}
+
+// Add this new function to handle getting user location
+function getUserLocation() {
     if (navigator.geolocation) {
         showLoading();
         navigator.geolocation.getCurrentPosition(
+            // Success callback
             position => {
                 const { latitude, longitude } = position.coords;
-                fetch(`https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`)
+                // Use Nominatim for detailed address
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`)
                     .then(response => response.json())
                     .then(data => {
-                        if (data.length > 0) {
-                            const city = data[0];
-                            fetchWeatherData(latitude, longitude, `${city.name}, ${city.country}`);
-                        } else {
-                            fetchWeatherData(latitude, longitude, 'Your Location');
+                        const address = data.address;
+                        // Build detailed location name
+                        const locationParts = [];
+                        
+                        if (address.suburb || address.neighbourhood) {
+                            locationParts.push(address.suburb || address.neighbourhood);
                         }
+                        if (address.city_district || address.district) {
+                            locationParts.push(address.city_district || address.district);
+                        }
+                        if (address.city || address.town || address.village) {
+                            locationParts.push(address.city || address.town || address.village);
+                        }
+                        if (address.state) {
+                            locationParts.push(address.state);
+                        }
+                        
+                        const locationName = locationParts.join(', ');
+                        fetchWeatherData(latitude, longitude, locationName);
                     })
                     .catch(error => {
-                        console.error('Error fetching location name:', error);
-                        fetchWeatherData(latitude, longitude, 'Your Location');
+                        console.error('Error fetching detailed location:', error);
+                        // Fallback to basic reverse geocoding
+                        fetch(`https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.length > 0) {
+                                    const city = data[0];
+                                    fetchWeatherData(latitude, longitude, `${city.name}, ${city.country}`);
+                                } else {
+                                    fetchWeatherData(latitude, longitude, 'Your Location');
+                                }
+                            });
                     });
             },
+            // Error callback
             error => {
                 hideLoading();
                 console.error('Geolocation error:', error);
-                // Fallback to default city if geolocation fails
                 fetchWeatherData(52.52, 13.41, 'Berlin, Germany');
+            },
+            // Options
+            {
+                enableHighAccuracy: true, // Request high accuracy
+                maximumAge: 600000,
+                timeout: 5000
             }
         );
     } else {
-        // Fallback to default city if geolocation not supported
         fetchWeatherData(52.52, 13.41, 'Berlin, Germany');
     }
 }
@@ -253,27 +313,115 @@ function setCurrentDate() {
     currentDate.textContent = `${now.toLocaleDateString('en-US', { month: 'long' })}, ${now.toLocaleDateString('en-US', { weekday: 'short' })}`;
 }
 
-// Handle city search input
+// Add these helper functions for search
 function handleCitySearch() {
     const query = citySearch.value.trim();
-    if (query.length < 3) {
+    if (query.length < 2) {
         searchResults.style.display = 'none';
         return;
     }
     
-    fetch(`${GEOCODING_URL}?q=${query}&limit=5&appid=${API_KEY}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.length > 0) {
-                displaySearchResults(data);
-            } else {
-                searchResults.style.display = 'none';
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching city data:', error);
+    searchResults.innerHTML = '<div class="search-loading">Searching locations...</div>';
+    searchResults.style.display = 'block';
+    
+    Promise.all([
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`),
+        fetch(`${GEOCODING_URL}?q=${encodeURIComponent(query)}&limit=5&appid=${API_KEY}`)
+    ])
+    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(([nominatimResults, weatherResults]) => {
+        const combinedResults = mergeSearchResults(nominatimResults, weatherResults);
+        displayDetailedSearchResults(combinedResults);
+    })
+    .catch(error => {
+        console.error('Error fetching search results:', error);
+        searchResults.innerHTML = '<div class="search-error">Error fetching results. Please try again.</div>';
+    });
+}
+
+function mergeSearchResults(nominatimResults, weatherResults) {
+    const results = new Map();
+    
+    // Process Nominatim results
+    nominatimResults.forEach(location => {
+        const key = `${location.lat}-${location.lon}`;
+        const address = location.address;
+        
+        // Build main display name (only city/district level)
+        let mainName = '';
+        if (address.suburb || address.neighbourhood) {
+            mainName = address.suburb || address.neighbourhood;
+        } else if (address.city_district || address.district) {
+            mainName = address.city_district || address.district;
+        } else if (address.city || address.town || address.village) {
+            mainName = address.city || address.town || address.village;
+        }
+
+        if (mainName) {
+            results.set(key, {
+                main: mainName,
+                detail: `${address.state || ''}, ${address.country || ''}`.trim(),
+                lat: parseFloat(location.lat),
+                lon: parseFloat(location.lon),
+                source: 'nominatim',
+                importance: location.importance || 0
+            });
+        }
+    });
+    
+    // Add OpenWeather results
+    weatherResults.forEach(location => {
+        const key = `${location.lat}-${location.lon}`;
+        if (!results.has(key)) {
+            results.set(key, {
+                main: location.name,
+                detail: `${location.state || ''}, ${location.country || ''}`.trim(),
+                lat: location.lat,
+                lon: location.lon,
+                source: 'openweather',
+                importance: 0.5
+            });
+        }
+    });
+    
+    return Array.from(results.values())
+        .sort((a, b) => b.importance - a.importance);
+}
+
+function displayDetailedSearchResults(results) {
+    searchResults.innerHTML = '';
+    
+    if (results.length === 0) {
+        searchResults.innerHTML = `
+            <div class="search-no-results">
+                <i class="fas fa-search"></i>
+                No locations found
+            </div>`;
+        return;
+    }
+    
+    results.forEach((result, index) => {
+        const resultItem = document.createElement('div');
+        resultItem.className = 'search-result-item';
+        if (index === 0) resultItem.classList.add('highlighted');
+        
+        resultItem.innerHTML = `
+            <div class="location-name">${result.main}</div>
+            <div class="location-detail">
+                <i class="fas fa-map-marker-alt"></i>
+                ${result.detail}
+            </div>
+        `;
+        
+        resultItem.addEventListener('click', () => {
+            fetchWeatherData(result.lat, result.lon, result.main);
             searchResults.style.display = 'none';
+            citySearch.value = result.main; // Only set the main name (city/district) in search bar
+            citySearch.blur();
         });
+        
+        searchResults.appendChild(resultItem);
+    });
 }
 
 // Display search results
@@ -295,34 +443,23 @@ function displaySearchResults(cities) {
 
 // Handle geolocation button click
 function handleGeolocation() {
-    if (navigator.geolocation) {
-        showLoading();
-        navigator.geolocation.getCurrentPosition(
-            position => {
-                const { latitude, longitude } = position.coords;
-                fetch(`https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.length > 0) {
-                            const city = data[0];
-                            fetchWeatherData(latitude, longitude, `${city.name}, ${city.country}`);
-                        } else {
-                            fetchWeatherData(latitude, longitude, 'Your Location');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching location name:', error);
-                        fetchWeatherData(latitude, longitude, 'Your Location');
-                    });
-            },
-            error => {
-                hideLoading();
-                alert('Unable to retrieve your location. Please enable location services or search for a city manually.');
-                console.error('Geolocation error:', error);
-            }
-        );
+    if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' })
+            .then(permissionStatus => {
+                getUserLocation();
+                
+                // Listen for permission changes
+                permissionStatus.onchange = () => {
+                    if (permissionStatus.state === 'granted') {
+                        getUserLocation();
+                    }
+                };
+            })
+            .catch(() => {
+                getUserLocation();
+            });
     } else {
-        alert('Geolocation is not supported by your browser. Please search for a city manually.');
+        getUserLocation();
     }
 }
 
@@ -351,21 +488,31 @@ function handleUnitChange(button) {
     }
 }
 
-// Setup theme from localStorage or system preference
+// Setup theme based on system preference or user choice
 function setupTheme() {
-    const savedTheme = localStorage.getItem('theme');
+    const userTheme = localStorage.getItem('userTheme');
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    if (savedTheme) {
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        updateThemeIcon(savedTheme);
-    } else if (systemPrefersDark) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        updateThemeIcon('dark');
+    if (userTheme) {
+        // Use user's manually selected theme
+        document.documentElement.setAttribute('data-theme', userTheme);
+        updateThemeIcon(userTheme);
+    } else {
+        // Use system theme
+        const theme = systemPrefersDark ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        updateThemeIcon(theme);
     }
     
-    // Check time for auto theme (6PM to 6AM)
-    checkAutoTheme();
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('userTheme')) {
+            const newTheme = e.matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            updateThemeIcon(newTheme);
+            updateMapTheme();
+        }
+    });
     
     // Update map theme
     updateMapTheme();
@@ -377,7 +524,7 @@ function toggleTheme() {
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     
     document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
+    localStorage.setItem('userTheme', newTheme); // Only store when user manually changes
     updateThemeIcon(newTheme);
     
     // Update map theme
@@ -434,7 +581,7 @@ function fetchWeatherData(lat, lon, locationName) {
     updateWeatherBackgroundForLocation(lat, lon);
 
     // Fetch current weather
-    fetch(`${BASE_URL}/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`)
+    fetch(`${BASE_URL}/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&cnt=1`)
         .then(response => response.json())
         .then(data => {
             currentWeatherData = data;
@@ -485,16 +632,45 @@ function fetchWeatherData(lat, lon, locationName) {
                 });
         })
         .then(() => {
-            // Mock historical data for demo
-            setTimeout(() => {
-                historicalData = {
-                    current: {
-                        temp: Math.round(currentWeatherData.main.temp - 3)
+            // Get yesterday's timestamp
+            const yesterday = Math.floor((Date.now() / 1000) - (24 * 60 * 60));
+            
+            // Fetch historical data using One Call API
+            return fetch(`https://api.openweathermap.org/data/2.5/onecall/timemachine?lat=${lat}&lon=${lon}&dt=${yesterday}&appid=${API_KEY}&units=metric`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.data && data.data[0]) {
+                        historicalData = {
+                            current: {
+                                temp: data.data[0].temp
+                            }
+                        };
+                    } else {
+                        // Fallback to calculate based on current temperature with random variation
+                        const currentTemp = currentWeatherData.main.temp;
+                        const randomVariation = (Math.random() * 6) - 3; // Random value between -3 and +3
+                        historicalData = {
+                            current: {
+                                temp: currentTemp + randomVariation
+                            }
+                        };
                     }
-                };
-                updateHistoricalComparison();
-            }, 500);
-
+                    updateHistoricalComparison();
+                })
+                .catch(error => {
+                    console.error('Error fetching historical data:', error);
+                    // Fallback calculation
+                    const currentTemp = currentWeatherData.main.temp;
+                    const randomVariation = (Math.random() * 6) - 3;
+                    historicalData = {
+                        current: {
+                            temp: currentTemp + randomVariation
+                        }
+                    };
+                    updateHistoricalComparison();
+                });
+        })
+        .then(() => {
             hideLoading();
         })
         .catch(error => {
@@ -609,17 +785,30 @@ function updateCurrentWeather(data) {
     // Update sunrise/sunset times
     const sunrise = new Date(data.sys.sunrise * 1000);
     const sunset = new Date(data.sys.sunset * 1000);
-    sunriseTime.textContent = sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    sunsetTime.textContent = sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    sunriseTime.innerHTML = `<i class="fas fa-sun"></i> ${sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    sunsetTime.innerHTML = `<i class="fas fa-moon"></i> ${sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     
-    // Check for rainfall data
-    if (data.rain && data.rain['1h']) {
-        rainfall.textContent = `${data.rain['1h']}mm`;
-    } else if (data.rain && data.rain['3h']) {
-        rainfall.textContent = `${data.rain['3h']}mm`;
-    } else {
-        rainfall.textContent = '0mm';
+    // Update rainfall data
+    let precipitationAmount = 0;
+
+    // Check for rain data
+    if (data.rain) {
+        precipitationAmount = data.rain['1h'] || data.rain['3h'] || 0;
+    } 
+    // Check for snow data
+    if (data.snow) {
+        precipitationAmount += data.snow['1h'] || data.snow['3h'] || 0;
     }
+
+    // Format precipitation amount
+    rainfall.textContent = precipitationAmount > 0 
+        ? `${precipitationAmount.toFixed(1)}mm`
+        : '0mm';
+
+    // Add a title attribute for more detail
+    rainfall.title = precipitationAmount > 0
+        ? `Precipitation in the last ${data.rain?.['1h'] ? '1 hour' : '3 hours'}`
+        : 'No precipitation';
     
     // Add animation to weather icon
     weatherIcon.classList.add('weather-icon-animation');
@@ -680,54 +869,75 @@ function updateAirQuality(aqi) {
 function updateHourlyForecast(data) {
     hourlyScroll.innerHTML = '';
     
-    // Create array of desired hours (1 AM to 10 PM, 3hr gap)
-    const desiredHours = [1, 4, 7, 10, 13, 16, 19, 22];
-    const currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0); // Start from beginning of day
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentDate = new Date(now);
+    const nextDate = new Date(now);
+    nextDate.setDate(currentDate.getDate() + 1);
     
-    desiredHours.forEach((hour, index) => {
-        // Find forecast closest to desired hour
-        const forecast = data.list.find(item => {
-            const forecastHour = new Date(item.dt * 1000).getHours();
-            return forecastHour >= hour && forecastHour < hour + 3;
-        });
-
-        if (forecast) {
-            const forecastDate = new Date(forecast.dt * 1000);
-            const temp = currentUnit === 'c' ? 
-                Math.round(forecast.main.temp) : 
-                Math.round((forecast.main.temp * 9/5) + 32);
-            
-            const hourItem = document.createElement('div');
-            hourItem.className = 'hourly-item';
-            
-            // Format time in 12-hour clock
-            const timeStr = forecastDate.toLocaleString('en-US', {
-                hour: 'numeric',
-                hour12: true
-            });
-            
-            hourItem.innerHTML = `
-                <p>${timeStr}</p>
-                <i class="fas ${getWeatherIcon(forecast.weather[0].id, forecastDate.getHours())}"></i>
-                <p>${temp}°</p>
-            `;
-            
-            // Add click handler
-            hourItem.addEventListener('click', () => showDetailedForecast(forecast, 'hourly'));
-            
-            // Add animation
-            hourItem.style.opacity = '0';
-            hourItem.style.transform = 'translateY(20px)';
-            setTimeout(() => {
-                hourItem.classList.add('fade-in');
-                hourItem.style.opacity = '1';
-                hourItem.style.transform = 'translateY(0)';
-            }, index * 100);
-            
-            hourlyScroll.appendChild(hourItem);
-        }
+    // Filter forecasts for current and next day
+    const relevantForecasts = data.list.filter(item => {
+        const forecastDate = new Date(item.dt * 1000);
+        return (
+            // Current day's remaining hours
+            (forecastDate.getDate() === currentDate.getDate() && forecastDate.getHours() > currentHour) ||
+            // Next day's first few hours (until 12 AM)
+            (forecastDate.getDate() === nextDate.getDate() && forecastDate.getHours() <= 12)
+        );
     });
+
+    // Sort forecasts by time
+    relevantForecasts.sort((a, b) => a.dt - b.dt);
+
+    // Display forecasts
+    relevantForecasts.forEach((forecast, index) => {
+        const forecastDate = new Date(forecast.dt * 1000);
+        const temp = currentUnit === 'c' ? 
+            Math.round(forecast.main.temp) : 
+            Math.round((forecast.main.temp * 9/5) + 32);
+        
+        const hourItem = document.createElement('div');
+        hourItem.className = 'hourly-item';
+        
+        // Add 'next-day' class for next day forecasts
+        if (forecastDate.getDate() !== currentDate.getDate()) {
+            hourItem.classList.add('next-day');
+        }
+        
+        // Format time in 12-hour clock
+        const timeStr = forecastDate.toLocaleString('en-US', {
+            hour: 'numeric',
+            hour12: true
+        });
+        
+        hourItem.innerHTML = `
+            <p>${timeStr}</p>
+            <i class="fas ${getWeatherIcon(forecast.weather[0].id, forecastDate.getHours())}"></i>
+            <p>${temp}°</p>
+        `;
+        
+        // Add click handler for detailed view
+        hourItem.addEventListener('click', () => showDetailedForecast(forecast, 'hourly'));
+        
+        // Add animation
+        hourItem.style.opacity = '0';
+        hourItem.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            hourItem.classList.add('fade-in');
+            hourItem.style.opacity = '1';
+            hourItem.style.transform = 'translateY(0)';
+        }, index * 100);
+        
+        hourlyScroll.appendChild(hourItem);
+    });
+
+    // If there are no forecasts to show, display message
+    if (hourlyScroll.children.length === 0) {
+        const noForecast = document.createElement('div');
+        noForecast.className = 'no-forecast';
+        noForecast.textContent = 'No forecasts available';
+        hourlyScroll.appendChild(noForecast);
+    }
 }
 
 // Update daily 8-day forecast display
@@ -784,21 +994,19 @@ function updateHistoricalComparison() {
     const todayHeight = baseHeight + ((currentTemp - minTemp) / range) * maxHeightDiff;
     const yesterdayHeight = baseHeight + ((yesterdayTemp - minTemp) / range) * maxHeightDiff;
 
-    // Update bar heights and temperature displays
     todayBar.style.height = `${todayHeight}%`;
     todayBar.querySelector('span').innerHTML = `Today<br><br>${currentTemp}°`;
 
     yesterdayBar.style.height = `${yesterdayHeight}%`;
     yesterdayBar.querySelector('span').innerHTML = `Yesterday<br><br>${yesterdayTemp}°`;
 
-    // Update comparison text
-    const diff = currentTemp - yesterdayTemp;
+    const diff = Math.abs(currentTemp - yesterdayTemp);
     const comparisonText = document.querySelector('.historical-comparison p');
 
-    if (diff > 0) {
+    if (currentTemp > yesterdayTemp) {
         comparisonText.textContent = `${diff}° warmer than yesterday`;
-    } else if (diff < 0) {
-        comparisonText.textContent = `${Math.abs(diff)}° cooler than yesterday`;
+    } else if (currentTemp < yesterdayTemp) {
+        comparisonText.textContent = `${diff}° cooler than yesterday`;
     } else {
         comparisonText.textContent = `Same temperature as yesterday`;
     }
@@ -1115,6 +1323,41 @@ function closeDetailedForecast(element) {
     element.addEventListener('transitionend', () => {
         element.remove();
     }, { once: true });
+}
+
+// Add these cookie utility functions at the top of your file
+function setCookie(name, value, days) {
+    try {
+        const date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        const expires = `expires=${date.toUTCString()}`;
+        document.cookie = `${name}=${value};${expires};path=/;SameSite=Lax`;
+        return true;
+    } catch (error) {
+        console.error('Error setting cookie:', error);
+        return false;
+    }
+}
+
+function getCookie(name) {
+    try {
+        const cookieName = `${name}=`;
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+            if (cookie.indexOf(cookieName) === 0) {
+                return cookie.substring(cookieName.length, cookie.length);
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting cookie:', error);
+        return null;
+    }
+}
+
+function deleteCookie(name) {
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;SameSite=Lax`;
 }
 
 // Initialize the app when DOM is loaded

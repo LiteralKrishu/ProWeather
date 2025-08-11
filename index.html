@@ -10,15 +10,15 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Theme Toggle -->
-        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode">
-            <i class="fas fa-moon"></i>
-        </button>
-
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h1 class="app-title">WeatherSphere</h1>
+                <div class="title-container">
+                    <h1 class="app-title">WeatherSphere</h1>
+                    <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
                 <div class="search-container">
                     <input type="text" id="city-search" placeholder="Search city..." autocomplete="off">
                     <div id="search-results" class="search-results"></div>
@@ -48,11 +48,9 @@
                 <p id="weather-description" class="weather-description">--</p>
                 <div class="sun-times">
                     <div class="sun-time">
-                        <i class="fas fa-sunrise"></i>
                         <span id="sunrise-time">--:--</span>
                     </div>
                     <div class="sun-time">
-                        <i class="fas fa-sunset"></i>
                         <span id="sunset-time">--:--</span>
                     </div>
                 </div>
