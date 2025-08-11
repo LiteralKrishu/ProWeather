@@ -1,10 +1,8 @@
-import config from './config.js';
-
 // API Configuration
-const API_KEY = config.API_KEY;
-const BASE_URL = config.BASE_URL;
-const GEOCODING_URL = config.GEOCODING_URL;
-const ICON_URL = config.ICON_URL;
+const API_KEY = '09bf19336f963a5b88058d0882551a19';
+const BASE_URL = 'https://api.openweathermap.org/data/2.5';
+const GEOCODING_URL = 'https://api.openweathermap.org/geo/1.0/direct';
+const ICON_URL = 'https://openweathermap.org/img/wn/';
 
 // DOM Elements
 const citySearch = document.getElementById('city-search');
