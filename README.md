@@ -39,8 +39,7 @@ Designed for **clarity, responsiveness, and engagement**, it integrates **real-t
 - Humidity, wind speed, pressure  
 - UV index with visual indicator  
 - Rainfall measurements  
-- Sunrise & sunset times  
-- Visibility conditions  
+- Sunrise & sunset times    
 
 ---
 
@@ -99,7 +98,7 @@ Designed for **clarity, responsiveness, and engagement**, it integrates **real-t
 ---
 
 ## 🌐 Live Preview
-👉 **[View Live on Netlify](#)**
+👉 **[View Live on Netlify](#https://weathersphereio.netlify.app/)**
 
 ---
 
