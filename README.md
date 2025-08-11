@@ -65,9 +65,8 @@ Designed for **clarity, responsiveness, and engagement**, it integrates **real-t
 ### **4. UI/UX Features**
 - Responsive design with sidebar & main content  
 - Mobile-friendly layout  
-- Light/dark mode toggle  
-- Auto theme switching based on time  
-- Dynamic weather backgrounds  
+- Light/dark mode toggle   
+- Dynamic weather tints  
 - Smooth transitions & animations  
 
 ---
