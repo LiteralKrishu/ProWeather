@@ -98,7 +98,7 @@ Designed for **clarity, responsiveness, and engagement**, it integrates **real-t
 ---
 
 ## 🌐 Live Preview
-👉 **[View Live on Netlify](#https://weathersphereio.netlify.app/)**
+👉 **[View Live on Netlify](https://weathersphereio.netlify.app/)**
 
 ---
 
