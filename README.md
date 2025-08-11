@@ -10,7 +10,8 @@
 
 ## 🧠 Overview
 
-**WeatherSphere** is a professional-grade weather web application that goes beyond basic forecasts. Designed for clarity, responsiveness, and engagement, it integrates **real-time APIs** with polished UI/UX to deliver accurate, visually appealing weather information.
+**WeatherSphere** is a professional-grade weather web application that goes beyond basic forecasts.  
+Designed for **clarity, responsiveness, and engagement**, it integrates **real-time APIs** with polished UI/UX to deliver accurate, visually appealing weather information.
 
 ---
 
@@ -21,7 +22,7 @@
 | **HTML5** | Semantic structure & accessibility |
 | **CSS3** | Responsive design, animations, theming |
 | **JavaScript (Vanilla)** | API integration, dynamic updates |
-| **[OpenWeatherMap API](https://openweathermap.org/api)** | Real-time weather & forecast |
+| **[OpenWeatherMap API](https://openweathermap.org/api)** | Real-time weather, forecast, air quality |
 | **[GeoDB Cities API](https://rapidapi.com/wirefreethought/api/geodb-cities/)** | Autocomplete city search |
 | **[Leaflet.js](https://leafletjs.com/)** | Interactive map display |
 | **Netlify** | Hosting & deployment |
@@ -29,54 +30,76 @@
 
 ---
 
-## 🗂 Feature Breakdown
+## 🗂 Features
 
-### **1. Core Functional Features**
-- **City Search with Autocomplete** – Suggest cities while typing  
-- **Current Weather Data** – Temperature (°C/°F toggle), condition, icon, feels-like temperature  
-- **Geolocation Auto-Detect** – Show weather for user's current location  
-- **Interactive Map** – Leaflet-powered world map with weather markers; when zoomed in and hovered, city/district cards appear with quick info; clicking opens full weather details  
-- **Responsive Design** – Works on all screen sizes  
-- **Error Handling** – Friendly messages for invalid searches or API errors  
-- **Global Weather Overview** – Displays conditions in major cities in the user’s country  
-
----
-
-### **2. Enhanced UI & Experience**
-- **Weather-Themed Animated Backgrounds** – Dynamic visuals for different conditions (sun, rain, clouds, etc.)  
-- **Sunrise/Sunset Times** – Icons and proper formatting  
-- **Humidity, Wind Speed, Pressure** – Additional weather details  
-- **5-Day Forecast** – Scrollable cards showing upcoming days  
-- **Light/Dark Mode Toggle** – Saves preference in localStorage  
-- **Time-Based Auto Theme** – Switches to dark mode automatically from 6PM–6AM  
-- **Loading Animation** – Smooth preloader during data fetch  
+### **1. Core Weather Features**
+- Current weather display  
+- Temperature with °C/°F toggle  
+- Weather description & icon  
+- Humidity, wind speed, pressure  
+- UV index with visual indicator  
+- Rainfall measurements  
+- Sunrise & sunset times  
+- Visibility conditions  
 
 ---
 
-### **3. Advanced Data Insights**
-- **Hourly Forecast View** – Next 12 hours in scrollable format  
-- **UV Index with Safety Note** – Health recommendations based on levels  
-- **Air Quality Index (AQI)** – Color-coded status levels  
-- **Historical Comparison** – Compare today’s weather to yesterday  
+### **2. Location Features**
+- Geolocation detection  
+- City search with autocomplete  
+- Map click location selection  
+- Popular cities quick access  
+- Interactive map with weather overlay  
+- Dark/light mode support for map  
 
 ---
 
-### **4. Engagement & Shareability**
-- **Share Weather Snapshot** – One-click copy or tweet  
-- **Seasonal Easter Eggs** – Themed animations for special dates  
+### **3. Forecast Features**
+- 24-hour weather predictions  
+- Temperature trends  
+- Weather conditions per hour  
+- 6-day weather outlook  
+- Daily temperature 
+
+---
+
+### **4. UI/UX Features**
+- Responsive design with sidebar & main content  
+- Mobile-friendly layout  
+- Light/dark mode toggle  
+- Auto theme switching based on time  
+- Dynamic weather backgrounds  
+- Smooth transitions & animations  
+
+---
+
+### **5. Additional Data Insights**
+- Air Quality Index (AQI) with health advice  
+- UV index with protection recommendations  
+- Visual meters for AQI & UV levels  
+
+---
+
+### **6. Performance & Reliability**
+- Loading overlays & progressive data loading  
+- Error handling with friendly messages  
+
+---
+
+### **7. Data Management**
+- Unit conversion: °C/°F, km/h, hPa  
+- Persistent preferences: theme, last location, temperature units  
+
+---
+
+### **8. Visual Elements**
+- Dynamic weather icons  
+- Font Awesome integration    
 
 ---
 
 ## 🌐 Live Preview
-
-*(Add link after deployment)*  
 👉 **[View Live on Netlify](#)**
-
----
-
-## 📷 Screenshots
-
-*(To be added after completion)*
 
 ---
 
@@ -84,4 +107,4 @@
 - **APIs:** [OpenWeatherMap](https://openweathermap.org/api), [GeoDB Cities API](https://rapidapi.com/wirefreethought/api/geodb-cities/)  
 - **Mapping:** [Leaflet.js](https://leafletjs.com/)  
 - **Hosting:** [Netlify](https://www.netlify.com/)  
-- **Challenge:** [Unstop CodeSpark – 72 Hour Build Challenge](https://unstop.com/hackathons/codespark-72-hour-build-challenge-techweek-vibe-engineers-government-engineering-college-siwan-1537337))
+- **Challenge:** [Unstop CodeSpark – 72 Hour Build Challenge](https://unstop.com/hackathons/codespark-72-hour-build-challenge-techweek-vibe-engineers-government-engineering-college-siwan-1537337)
