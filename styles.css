@@ -1137,3 +1137,47 @@ search-result-item.highlighted .location-detail {
     gap: 1rem;
     margin-bottom: 1.5rem;
 }
+
+/* Add these styles at the end of the file */
+.marker-popup {
+    padding: 5px;
+    text-align: center;
+}
+
+.marker-popup .temp {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.marker-popup .description {
+    text-transform: capitalize;
+    color: var(--text-color);
+}
+
+.marker-popup .humidity {
+    color: var(--text-color);
+    opacity: 0.8;
+    font-size: 0.9em;
+}
+
+#weather-map {
+    cursor: pointer;
+}
+
+.leaflet-popup-content-wrapper {
+    background: var(--card-bg);
+    color: var(--text-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+}
+
+.leaflet-popup-tip {
+    background: var(--card-bg);
+}
+
+[data-theme="dark"] .leaflet-popup-content-wrapper,
+[data-theme="dark"] .leaflet-popup-tip {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}

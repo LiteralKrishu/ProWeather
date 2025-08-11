@@ -277,6 +277,51 @@ function initMap() {
     
     // Add weather layer control
     addWeatherLayer();
+
+    // Add click event handler for map
+    map.on('click', async function(e) {
+        const { lat, lng } = e.latlng;
+        showLoading();
+
+        try {
+            // Get location name using reverse geocoding
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`);
+            const data = await response.json();
+
+            // Build location name
+            let locationName = '';
+            const address = data.address;
+            
+            if (address.suburb || address.neighbourhood) {
+                locationName += address.suburb || address.neighbourhood;
+            }
+            if (address.city || address.town || address.village) {
+                locationName += locationName ? ', ' : '';
+                locationName += address.city || address.town || address.village;
+            }
+            if (address.state) {
+                locationName += locationName ? ', ' : '';
+                locationName += address.state;
+            }
+            if (address.country) {
+                locationName += locationName ? ', ' : '';
+                locationName += address.country;
+            }
+
+            // If no proper location name was built, use a generic one
+            if (!locationName) {
+                locationName = 'Selected Location';
+            }
+
+            // Fetch weather for clicked location
+            fetchWeatherData(lat, lng, locationName);
+
+        } catch (error) {
+            console.error('Error getting location name:', error);
+            // Fallback to generic location name
+            fetchWeatherData(lat, lng, 'Selected Location');
+        }
+    });
 }
 
 // Add weather layer to map
@@ -878,12 +923,9 @@ function updateHourlyForecast(data) {
     // Filter forecasts for current and next day
     const relevantForecasts = data.list.filter(item => {
         const forecastDate = new Date(item.dt * 1000);
-        return (
-            // Current day's remaining hours
-            (forecastDate.getDate() === currentDate.getDate() && forecastDate.getHours() > currentHour) ||
-            // Next day's first few hours (until 12 AM)
-            (forecastDate.getDate() === nextDate.getDate() && forecastDate.getHours() <= 12)
-        );
+        const timeDiff = forecastDate.getTime() - now.getTime();
+        const hoursDiff = timeDiff / (1000 * 60 * 60);
+        return hoursDiff >= 0 && hoursDiff <= 24;
     });
 
     // Sort forecasts by time
@@ -1060,28 +1102,44 @@ function updatePopularCities() {
 
 // Add marker to map
 function addMarker(lat, lon, title) {
+    // Clear existing markers first
+    clearMarkers();
+    
     const marker = L.marker([lat, lon], {
         title: title,
         alt: title,
         riseOnHover: true
     }).addTo(map);
     
-    marker.bindPopup(`<b>${title}</b><br>Loading weather data...`);
+    // Add popup with loading state
+    const popup = L.popup()
+        .setLatLng([lat, lon])
+        .setContent(`<b>${title}</b><br>Loading weather data...`);
+    
+    marker.bindPopup(popup);
     
     // Fetch weather for marker popup
     fetch(`${BASE_URL}/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`)
         .then(response => response.json())
         .then(data => {
             const temp = currentUnit === 'c' ? Math.round(data.main.temp) : Math.round((data.main.temp * 9/5) + 32);
-            marker.setPopupContent(`
-                <b>${title}</b><br>
-                ${temp}° | ${data.weather[0].description}<br>
-                Humidity: ${data.main.humidity}%
+            popup.setContent(`
+                <div class="marker-popup">
+                    <b>${title}</b><br>
+                    <span class="temp">${temp}°${currentUnit.toUpperCase()}</span><br>
+                    <span class="description">${data.weather[0].description}</span><br>
+                    <span class="humidity">Humidity: ${data.main.humidity}%</span>
+                </div>
             `);
+            marker.setPopupContent(popup);
         })
-        .catch(error => console.error('Error fetching marker weather:', error));
+        .catch(error => {
+            console.error('Error fetching marker weather:', error);
+            popup.setContent(`<b>${title}</b><br>Error loading weather data`);
+        });
     
     markers.push(marker);
+    return marker;
 }
 
 // Clear all markers from map
